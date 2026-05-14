@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS | Surveillance Command</title>
+    
+    <!-- Radar Emoji Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    
+    <!-- Font -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- GATEKEEPER SECURITY -->
+    <script>
+        const token = localStorage.getItem('aegis_token');
+        if (!token) {
+            window.location.href = '/login';
+        }
+    </script>
+</head>
+<body class="bg-[#05080f] text-slate-50 font-mono h-screen flex flex-col overflow-hidden">
+
+    <div class="crt-overlay"></div>
+    <div class="scanline"></div>
+    <!-- HEADER -->
+    <header class="border-b border-slate-800 bg-[#05080f] p-4 flex justify-between items-center shadow-lg z-10 shrink-0">
+        <div class="flex items-center gap-3">
+            <!-- Pulsing Dot (Cyan) -->
+            <div class="w-3 h-3 rounded-full bg-[#45E3FF] animate-pulse shadow-[0_0_10px_#45E3FF]"></div>
+            <!-- Title (Purple) -->
+            <h1 class="text-xl font-bold tracking-widest text-[#A163F7]">AEGIS <span class="text-slate-600">RADAR SYS v2.0</span></h1>
+        </div>
+        <div class="flex gap-4 text-xs text-slate-500 items-center">
+            <div>BAND: <span class="text-white">24GHz FMCW</span></div>
+            <div>STATUS: <span class="text-[#45E3FF]">ONLINE</span></div>
+            <div>AI MODEL: <span class="text-white">RESNET-CNN</span></div>
+            
+            <!-- LOGOUT BUTTON -->
+            <button onclick="logout()" class="ml-4 border border-[#FF7582] text-[#FF7582] text-xs px-3 py-1 rounded hover:bg-[#FF7582] hover:text-white transition-colors">
+                LOGOUT
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN GRID -->
+    <main class="flex-1 grid grid-cols-12 gap-0 overflow-hidden">
+        
+        <!-- LEFT: CONTROLS -->
+        <aside class="col-span-3 bg-[#0f172a]/90 backdrop-blur border-r border-slate-800 p-6 flex flex-col gap-6 overflow-y-auto animate-slide-in">
+            
+            <!-- Scenario Loader -->
+            <div class="panel shrink-0">
+                <h2 class="panel-header">SCENARIO SIMULATION</h2>
+                <div class="flex flex-col gap-3 mt-4">
+                    <button onclick="loadScenario('drone')" class="btn-control group">
+                        <span class="group-hover:animate-ping absolute inline-flex h-2 w-2 rounded-full bg-[#FF7582] opacity-75 mr-2"></span>
+                        LOAD: DRONE INCURSION
+                    </button>
+                    <button onclick="loadScenario('human')" class="btn-control">
+                        LOAD: HUMAN TRAFFIC
+                    </button>
+                    <button onclick="loadScenario('car')" class="btn-control">
+                        LOAD: VEHICLE TRACKING
+                    </button>
+                </div>
+
+                <div class="border-t border-slate-800 my-4"></div>
+
+                <!-- Inject Button (Purple) -->
+                <button onclick="loadRandom()" class="btn-control border-[#A163F7] text-[#A163F7] hover:bg-[#A163F7]/10 mb-3 group relative overflow-hidden">
+                    <div class="absolute inset-0 bg-[#A163F7]/10 animate-pulse"></div>
+                    <span class="relative font-bold">⚠️ INJECT UNKNOWN SIGNAL</span>
+                </button>
+
+                <input type="file" id="manual-upload" class="hidden" accept=".csv">
+                <button onclick="document.getElementById('manual-upload').click()" class="btn-control border-slate-600 text-slate-400 hover:bg-slate-800 text-xs text-center py-2">
+                    📂 UPLOAD EXTERNAL FILE
+                </button>
+
+                <div id="scenario-status" class="mt-4 text-xs text-slate-500 italic text-center">System Idle</div>
+            </div>
+
+            <!-- Radar Controls -->
+            <div class="panel mt-auto shrink-0">
+                <h2 class="panel-header">RADAR CONTROL</h2>
+                <div class="flex gap-2 mt-4">
+                    <!-- Start (Blue) -->
+                    <button id="btn-start" onclick="toggleRadar(true)" class="bg-[#6F88FC] text-white p-3 w-full rounded hover:bg-[#5a75e6] font-bold disabled:opacity-50 transition-all shadow-[0_0_15px_rgba(111,136,252,0.3)]">
+                        INITIATE SCAN
+                    </button>
+                    <!-- Stop (Red) -->
+                    <button id="btn-stop" onclick="toggleRadar(false)" class="bg-[#FF7582]/20 border border-[#FF7582] text-[#FF7582] p-3 w-full rounded hover:bg-[#FF7582]/40 font-bold disabled:opacity-50 transition-colors" disabled>
+                        HALT
+                    </button>
+                </div>
+                
+                <div class="mt-6">
+                    <div class="text-xs text-slate-500 mb-1">LATENCY</div>
+                    <div id="latency-val" class="text-2xl font-bold text-slate-300">-- ms</div>
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- CENTER: VISUALIZATION -->
+        <section class="col-span-6 bg-black relative flex flex-col border-r border-slate-800">
+            <div class="absolute top-4 left-4 z-10 bg-black/60 p-2 rounded border border-slate-700 backdrop-blur">
+                <div class="text-xs text-[#45E3FF] tracking-widest">MICRO-DOPPLER SIGNATURE</div>
+            </div>
+            <!-- Plotly Chart -->
+            <div id="radar-heatmap" class="w-full h-full"></div>
+            <!-- Overlay Grid -->
+            <div class="absolute inset-0 pointer-events-none radar-grid"></div>
+        </section>
+
+        <!-- RIGHT: ANALYSIS -->
+        <aside class="col-span-3 bg-[#0f172a]/90 backdrop-blur p-6 flex flex-col overflow-hidden animate-slide-in" style="animation-delay: 0.2s;">
+            <h2 class="panel-header shrink-0">TARGET CLASSIFICATION</h2>
+
+            <!-- Threat Box -->
+            <div id="threat-panel" class="mt-6 p-6 border-2 border-slate-700 rounded-lg text-center transition-all duration-300 bg-slate-900/50 shrink-0">
+                <div class="text-xs text-slate-500 tracking-widest uppercase mb-2">DETECTED ENTITY</div>
+                <div id="target-label" class="text-4xl font-bold text-slate-600 tracking-wider">-- --</div>
+            </div>
+
+            <!-- Confidence -->
+            <div class="mt-8 shrink-0">
+                <div class="flex justify-between text-xs text-slate-400 mb-2">
+                    <span>CONFIDENCE SCORE</span>
+                    <span id="conf-val">0%</span>
+                </div>
+                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700">
+                    <div id="conf-bar" class="h-full bg-slate-600 w-0 transition-all duration-300 ease-out"></div>
+                </div>
+            </div>
+
+            <!-- Live Logs -->
+            <div class="flex-1 mt-8 flex flex-col overflow-hidden">
+                
+                <div class="flex justify-between items-center mb-2 border-b border-slate-800 pb-1 shrink-0">
+                    <h2 class="panel-header mb-0 border-none pb-0">EVENT LOGS</h2>
+                    
+                    <div class="flex gap-3">
+                        <!-- Analytics Button (Purple) -->
+                        <button onclick="toggleAnalytics(true)" class="text-[10px] text-[#A163F7] hover:text-white hover:underline cursor-pointer tracking-wider font-bold">
+                            [ANALYTICS]
+                        </button>
+                        <!-- Database Button (Blue) -->
+                        <button onclick="toggleHistory(true)" class="text-[10px] text-[#6F88FC] hover:text-white hover:underline cursor-pointer tracking-wider font-bold">
+                            [DATABASE]
+                        </button>
+                    </div>
+                </div>
+
+                <div id="logs" class="flex-1 overflow-y-auto text-xs font-mono space-y-2 pr-2 text-slate-400 scrollbar-thin">
+                    <!-- Logs injected here -->
+                </div>
+                
+            </div>
+        </aside>
+
+    </main>
+
+    <!-- 1. ANALYTICS MODAL -->
+    <div id="analytics-modal" class="fixed inset-0 bg-black/90 backdrop-blur hidden items-center justify-center z-50">
+        <div class="bg-[glass-panel w-3/4 h-3/4 rounded-lg flex flex-col] border border-slate-700 w-3/4 h-3/4 rounded-lg flex flex-col shadow-[0_0_50px_rgba(161,99,247,0.2)]">
+            <div class="p-4 border-b border-slate-700 flex justify-between bg-[#05080f] items-center">
+                <h2 class="text-[#A163F7] font-bold tracking-widest text-lg">📊 TACTICAL ANALYTICS</h2>
+                <button onclick="toggleAnalytics(false)" class="text-slate-400 hover:text-white text-2xl font-bold px-2">&times;</button>
+            </div>
+            <div class="flex-1 p-6 grid grid-cols-2 gap-6 overflow-y-auto">
+                <!-- Chart 1 -->
+                <div class="bg-[#1e293b] rounded-lg p-4 border border-slate-700">
+                    <h3 class="text-slate-400 text-xs tracking-widest mb-4">TARGET DISTRIBUTION</h3>
+                    <div id="chart-pie" class="w-full h-64"></div>
+                </div>
+                <!-- Chart 2 -->
+                <div class="bg-[#1e293b] rounded-lg p-4 border border-slate-700">
+                    <h3 class="text-slate-400 text-xs tracking-widest mb-4">THREAT RATIO</h3>
+                    <div id="chart-bar" class="w-full h-64"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. HISTORY MODAL -->
+    <div id="history-modal" class="fixed inset-0 bg-black/90 backdrop-blur hidden items-center justify-center z-50">
+        <div class="bg-[glass-panel w-3/4 h-3/4 rounded-lg flex flex-col] border border-slate-700 w-3/4 h-3/4 rounded-lg flex flex-col shadow-[0_0_50px_rgba(161,99,247,0.2)]">
+            <div class="p-4 border-b border-slate-700 flex justify-between bg-[#05080f] items-center">
+                <h2 class="text-[#A163F7] font-bold tracking-widest text-lg">⚠️ MISSION AUDIT TRAIL</h2>
+                <button onclick="toggleHistory(false)" class="text-slate-400 hover:text-white text-2xl font-bold px-2">&times;</button>
+            </div>
+            <div class="flex-1 overflow-auto p-0">
+                <table class="w-full text-left text-sm text-slate-400">
+                    <thead class="bg-slate-900 text-slate-200 sticky top-0 shadow-md">
+                        <tr>
+                            <th class="p-3 font-bold tracking-wider">TIMESTAMP</th>
+                            <th class="p-3 font-bold tracking-wider">SOURCE ID</th>
+                            <th class="p-3 font-bold tracking-wider">CLASSIFICATION</th>
+                            <th class="p-3 font-bold tracking-wider">CONFIDENCE</th>
+                            <th class="p-3 font-bold tracking-wider">STATUS</th>
+                            <th class="p-3 font-bold tracking-wider text-center">VERIFY</th>
+                            <th class="p-3 font-bold tracking-wider text-right">REPORT</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body" class="divide-y divide-slate-800 font-mono text-xs">
+                        <!-- Rows injected via JS -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-3 bg-[#05080f] border-t border-slate-700 text-right text-xs text-slate-500">
+                Aegis Secure Logging Protocol v2.0
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. FEEDBACK VERIFICATION MODAL -->
+    <!-- Added 'onclick' to the background wrapper to detect outside clicks -->
+    <div id="feedback-modal" class="fixed inset-0 bg-black/90 backdrop-blur hidden items-center justify-center z-[60]" onclick="closeFeedbackOutside(event)">
+        
+        <!-- Inner Panel: Made wider (max-w-md) and added glass effect -->
+        <div class="glass-panel w-full max-w-md p-6 rounded-xl shadow-[0_0_50px_rgba(161,99,247,0.15)] relative transform transition-all" onclick="event.stopPropagation()">
+            
+            <!-- Header with Close Button -->
+            <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-3">
+                <h3 class="text-[#A163F7] font-bold text-lg tracking-widest">VERIFY CLASSIFICATION</h3>
+                <button onclick="closeFeedback()" class="text-slate-500 hover:text-white text-2xl font-bold px-2 transition-colors">&times;</button>
+            </div>
+
+            <p class="text-slate-300 text-sm mb-6 text-center">
+                Select the actual ground truth for Scan <span id="display-scan-id" class="font-mono text-[#6F88FC]">#---</span>:
+            </p>
+            
+            <input type="hidden" id="feedback-scan-id">
+            
+            <!-- Buttons: Vertical Stack, Full Width, Better Spacing -->
+            <div class="flex flex-col gap-3">
+                <button onclick="submitCorrection('DRONE')" class="group relative w-full p-4 border border-[#FF7582] bg-[#FF7582]/5 hover:bg-[#FF7582] rounded transition-all duration-200">
+                    <span class="font-mono font-bold text-[#FF7582] group-hover:text-white tracking-widest uppercase">Drone (Threat)</span>
+                </button>
+                
+                <button onclick="submitCorrection('CAR')" class="group relative w-full p-4 border border-[#F59E0B] bg-[#F59E0B]/5 hover:bg-[#F59E0B] rounded transition-all duration-200">
+                    <span class="font-mono font-bold text-[#F59E0B] group-hover:text-white tracking-widest uppercase">Car (Vehicle)</span>
+                </button>
+                
+                <button onclick="submitCorrection('HUMAN')" class="group relative w-full p-4 border border-[#45E3FF] bg-[#45E3FF]/5 hover:bg-[#45E3FF] rounded transition-all duration-200">
+                    <span class="font-mono font-bold text-[#45E3FF] group-hover:text-white tracking-widest uppercase">Human (Neutral)</span>
+                </button>
+            </div>
+            
+            <div class="mt-6 text-center">
+                <button onclick="closeFeedback()" class="text-xs text-slate-500 hover:text-slate-300 underline transition-colors">
+                    CANCEL / CLOSE
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
